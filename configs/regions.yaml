@@ -1,0 +1,171 @@
+# configs/regions.yaml
+# ---------------------------------------------------------------------------
+# Definition of the four study regions for the cross-region bias benchmark.
+#
+# Coordinate convention
+#   - All bboxes are in EPSG:4326 (WGS84 lon/lat decimal degrees).
+#   - Order is [west, south, east, north]  (i.e., minlon, minlat, maxlon, maxlat).
+#     This matches GeoJSON and rasterio.bounds. Do not silently flip to
+#     [minlat, minlon, maxlat, maxlon] anywhere downstream.
+#
+# Region selection rationale
+#   We deliberately pick four regions of comparable forested area (~250k–1.4M
+#   km² of available forest each, after applying treecover2000 >= 30%) that
+#   span the axis we expect to matter most: density of OpenStreetMap features
+#   (which drove OlmoEarth's pretraining sampling). Western Europe is dense;
+#   Central Africa is sparse; Brazil and Borneo are intermediate but with
+#   strong task-specific (deforestation) data ecosystems.
+#
+# What lives here vs. elsewhere
+#   - This file: geometry + descriptive metadata only.
+#   - configs/sampling.yaml: target year, chip count, cloud thresholds, seeds.
+#   - configs/models.yaml: model checkpoints, embedding dims, band order.
+# ---------------------------------------------------------------------------
+
+regions:
+
+  western_europe:
+    name: "Western Europe"
+    short_code: "WE"
+    bbox: [5.0, 46.0, 11.0, 50.5]
+    primary_biome: "Temperate Broadleaf & Mixed Forests"
+    expected_loss_density: "very_low"
+    description: |
+      Central European forested belt: eastern France, Switzerland, southern
+      and central Germany, western Austria. Covers Vosges, Jura, Black
+      Forest, Swabian Alb, Bavarian Forest, and the Northern Alps.
+      Selected as the data-rich "control" region — high OSM density, well
+      represented in OlmoEarth's pretraining sample distribution.
+    notes: |
+      Loss events are rare and structurally different from tropical regions:
+      mostly windthrow, sanitary cutting, and bark-beetle die-offs in
+      managed forests. To get a viable positive class:
+        - Consider concentrating sampling on years with major windstorm or
+          beetle events (e.g., 2018 storm Friederike + subsequent Ips
+          typographus outbreaks across Germany and Czechia).
+        - Do NOT relax the treecover2000 threshold below 30 %; doing so
+          pulls in fragmented agroforestry that biases the comparison.
+      If positive count is still inadequate after these tweaks, expand the
+      bbox eastward to ~14°E to include the Bohemian Forest / Šumava and
+      additional beetle-affected areas. Document any expansion in the
+      manifest, do not silently change this file.
+
+  brazilian_amazon:
+    name: "Brazilian Amazon (Arc of Deforestation)"
+    short_code: "BA"
+    bbox: [-63.0, -12.0, -50.0, -4.0]
+    primary_biome: "Tropical & Subtropical Moist Broadleaf Forests"
+    expected_loss_density: "high"
+    description: |
+      Southern and eastern Amazon basin: Acre, Rondônia, southern
+      Amazonas, Mato Grosso (north), and central/western Pará. The classic
+      "arc of deforestation" — large-scale clearing for cattle pasture
+      and soy. Data-rich for deforestation specifically (PRODES,
+      MapBiomas, GFW, decades of academic work) but tropical biome where
+      OSM-derived pretraining sampling is moderate at best.
+    notes: |
+      - Hansen GFC performs best here of all four regions. PRODES and
+        MapBiomas are available as independent cross-checks if you want
+        to bound label noise (recommended for a small validation subset;
+        see CLAUDE.md §10).
+      - Cloud cover is moderate (worse Dec–Mar) but tractable with annual
+        median composites.
+      - Watch for selective logging: Hansen GFC misses a non-trivial
+        fraction of selective extraction that doesn't breach the 30 %
+        canopy threshold. Frame results as "stand-replacing loss," not
+        "all forest disturbance."
+
+  central_africa:
+    name: "Central Africa (Congo Basin)"
+    short_code: "CA"
+    bbox: [13.0, -4.0, 27.0, 4.0]
+    primary_biome: "Tropical & Subtropical Moist Broadleaf Forests"
+    expected_loss_density: "moderate"
+    description: |
+      Congo Basin lowland forest: Gabon, Republic of Congo, southern
+      Central African Republic, and northern/central Democratic Republic
+      of the Congo. The second-largest contiguous tropical forest globally.
+      Selected as the region we expect to be most underrepresented in
+      OlmoEarth's pretraining distribution (OSM is sparse here), making
+      it the key test of the pretraining-bias hypothesis.
+    notes: |
+      - Heavy persistent cloud cover, especially in equatorial DRC.
+        Expect noticeably lower valid-pixel fraction in S2 composites
+        than in the Amazon. This is itself a confounder — performance
+        gaps here are NOT cleanly attributable to "model bias" without
+        controlling for input quality.
+      - Hansen GFC has documented elevated commission errors in the
+        moist forest / swamp forest / dry forest transitions of the
+        Congo. Treat single-digit F1 differences vs. other regions
+        with caution.
+      - Driver mix: shifting cultivation > industrial logging here, so
+        deforestation patches tend to be smaller than in Brazil. This
+        affects 256×256 chip selection — many positives will be
+        partial-fill chips, not solid clearings.
+
+  southeast_asia:
+    name: "Southeast Asia (Borneo)"
+    short_code: "SEA"
+    bbox: [109.0, -4.0, 119.0, 7.0]
+    primary_biome: "Tropical & Subtropical Moist Broadleaf Forests"
+    expected_loss_density: "high"
+    description: |
+      Island of Borneo: Indonesian Kalimantan (West, Central, South,
+      East, North), Malaysian Sabah and Sarawak, and Brunei. Heterogeneous
+      mosaic of remnant lowland dipterocarp forest, logged-over secondary
+      forest, oil palm and acacia plantations, and smallholder agroforestry.
+      The most spatially heterogeneous of the four regions.
+    notes: |
+      - Plantation rotation cycles (oil palm 25y, acacia ~7y) appear in
+        Hansen GFC as periodic "loss." This is the dominant label-noise
+        source in this region. Strongly consider masking out the GFW oil
+        palm and pulpwood plantation layers before sampling positives,
+        OR explicitly stratifying positive samples into "plantation
+        rotation" vs. "primary/secondary clearing" and reporting
+        separately.
+      - Cloud cover is heavy and roughly aseasonal. Annual median
+        composites are the right base; monthly composites are too sparse.
+      - Restricting to Borneo (rather than spanning Borneo + Sumatra +
+        Peninsular Malaysia + New Guinea) keeps the region
+        biogeographically coherent. Sumatra in particular has very
+        different deforestation dynamics and would dilute the analysis.
+
+# ---------------------------------------------------------------------------
+# Ecoregion stratification
+# Auto-populated at runtime by intersecting each region's bbox with the WWF
+# 2017 terrestrial ecoregions layer.
+# ---------------------------------------------------------------------------
+
+ecoregion_stratification:
+  source_asset: "RESOLVE/ECOREGIONS/2017"
+  # Drop any ecoregion contributing less than this fraction of a region's
+  # land area, to avoid noisy tail strata with too few chips.
+  min_area_fraction: 0.05
+  # Minimum chips per retained ecoregion in the test split. Sampling will
+  # reject configs that can't satisfy this for every retained ecoregion.
+  min_test_chips_per_ecoregion: 30
+
+# ---------------------------------------------------------------------------
+# CRS conventions used downstream
+# ---------------------------------------------------------------------------
+
+crs:
+  bbox_crs: "EPSG:4326"          # what the bboxes above are in
+  intersection_crs: "EPSG:4326"  # used for region × ecoregion overlay
+  chip_crs: "auto-utm"           # each chip exported in its native UTM zone
+                                 # (preserves 10 m pixel scale; required by
+                                 # OlmoEarth's expected input geometry)
+
+# ---------------------------------------------------------------------------
+# Sanity checks (consumed by scripts/01_sample_labels.py at startup)
+# ---------------------------------------------------------------------------
+
+sanity_checks:
+  # If any region has fewer than this many positive (loss) candidate pixels
+  # at the configured year, abort and surface the issue rather than silently
+  # producing an underpowered sample. This is the main guard against the
+  # Western Europe "where are the positives?" failure mode.
+  min_candidate_positives_per_region: 50000
+  # Maximum allowed disparity in available positives across regions before
+  # we WARN (not abort). Big disparities are real, but should be visible.
+  warn_positive_imbalance_ratio: 20.0
