@@ -1,0 +1,55 @@
+# configs/sampling.yaml
+# ---------------------------------------------------------------------------
+# Sampling parameters for the cross-region bias benchmark.
+#
+# What lives here vs. elsewhere
+#   - configs/regions.yaml: region geometries, ecoregion stratification rules.
+#   - This file: target year, chip counts, label thresholds, cloud filtering,
+#     spatial-split geometry, and seeds.
+#   - configs/models.yaml: per-model band requirements + input specs.
+#
+# All defaults below are tentative — confirm against §13 of CLAUDE.md before
+# running script 01 against a non-trivial sample budget.
+# ---------------------------------------------------------------------------
+
+# Hansen GFC label definition (CLAUDE.md §5.1)
+labels:
+  asset: "UMD/hansen/global_forest_change_2024_v1_12"  # 2023_v1_11 is deprecated
+  target_year: 2020                                     # year of loss to sample as positive
+  treecover2000_min_pct: 30                             # canopy threshold for both classes
+  # Negatives are pixels with treecover2000 >= threshold AND lossyear == 0
+  # over the same period.
+
+# Per-region sample budget (CLAUDE.md §6, §13)
+# Class-project scale: 200+200/region for the proposal figure.
+budget:
+  positives_per_region: 200
+  negatives_per_region: 200
+
+# Sentinel-2 composite settings (CLAUDE.md §5.2)
+# NOTE: chip size is 64 (not 256) and bands are 12 (not 10) — required by
+# OlmoEarth's input spec. See configs/models.yaml.expected_bands for the
+# canonical band ORDER, which must match exactly. 64 px × 10 m = 640 m chips.
+imagery:
+  asset: "COPERNICUS/S2_SR_HARMONIZED"
+  composite_months: 12                # window centered on target_year
+  msk_cldprb_max: 20                  # per-pixel cloud probability cutoff
+  scl_keep_classes: [4, 5, 6, 7, 11]  # vegetation, bare, water, unclassified, snow
+  chip_size_px: 64
+  pixel_size_m: 10
+  # Tracked alongside F1 so cloud-driven gaps are not mistaken for model bias.
+  report_valid_pixel_fraction: true
+
+# Spatial deduplication and block-holdout split (CLAUDE.md §6)
+geometry:
+  min_chip_separation_km: 5.0         # between any two chip centers in a region
+  block_grid_deg: 0.5                 # whole 0.5° cells go to train OR test
+  test_block_fraction: 0.25           # ~25% of cells (by area) become test
+  val_block_fraction: 0.10            # carved from train for fine-tuning val
+
+# Determinism (CLAUDE.md §9)
+seeds:
+  sampling: 20200101
+  split: 20200102
+  probe: 20200103
+  finetune: 20200104

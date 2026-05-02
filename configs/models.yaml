@@ -1,0 +1,50 @@
+# configs/models.yaml
+# ---------------------------------------------------------------------------
+# Foundation models under evaluation.
+#
+# CLAUDE.md §7 is the source of truth for protocol-level decisions:
+#   - Embedding dim and pooling MUST be identical across regions.
+#   - Always use the OlmoEarth-provided dataloader/transform — do not build
+#     your own normalization. Band order in particular is model-specific
+#     and must be confirmed against the upstream repo before extraction.
+#   - A new model only goes in here AFTER OlmoEarth produces a clean
+#     end-to-end heatmap (§7.2).
+# ---------------------------------------------------------------------------
+
+# Selects which entry below is treated as the primary model.
+default_model: "olmoearth_v1_base"
+
+models:
+
+  olmoearth_v1_base:
+    name: "OlmoEarth-v1-Base"
+    model_id: "OLMOEARTH_V1_BASE"  # olmoearth_pretrain.model_loader.ModelID
+    # Confirmed via scripts/_smoke_olmoearth.py:
+    embedding_dim: 768
+    # Sentinel-2 L2A band order, exactly as Modality.SENTINEL2_L2A.band_order
+    # in olmoearth_pretrain.data.constants. Three band sets (10m / 20m / 60m).
+    expected_bands:
+      - B02   # 10m
+      - B03
+      - B04
+      - B08
+      - B05   # 20m
+      - B06
+      - B07
+      - B8A
+      - B11
+      - B12
+      - B01   # 60m (stored at 40m)
+      - B09
+    num_band_sets: 3        # mask channel dim
+    expected_size: 64       # recommended; max 128 per Inference-Quickstart
+    patch_size: 4           # smaller = better, more compute
+    # Pooling: mean over (H', W', T, band_sets) -> (B, D)
+    pooling: "global_mean"
+
+  # --- Placeholders for the multi-model extension (CLAUDE.md §11) ---
+  # Do not enable these until OlmoEarth-only pipeline is stable.
+  # prithvi_v2: { ... }
+  # clay: { ... }
+  # terramind: { ... }
+  # satlas: { ... }
