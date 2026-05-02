@@ -1,0 +1,32 @@
+# Environments
+.venv/
+.env
+
+# Secrets — Earth Engine service account keys, anything with credentials
+secrets/
+*.key
+secrets/*.json
+
+# Data — chips, embeddings, exported results live here and are large
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Tooling caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

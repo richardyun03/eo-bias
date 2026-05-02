@@ -1,0 +1,1 @@
+"""Name -> FoundationModel loader registry."""
