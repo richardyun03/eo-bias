@@ -39,6 +39,11 @@ imagery:
   pixel_size_m: 10
   # Tracked alongside F1 so cloud-driven gaps are not mistaken for model bias.
   report_valid_pixel_fraction: true
+  # Year offsets from target_year for the multi-timestep composite. [-1, 1]
+  # gives a pre-loss (e.g., 2019) + post-loss (2021) pair for target_year=2020,
+  # so OlmoEarth sees explicit before/after rather than a single year-median
+  # that smears the loss event across one statistic. [0] = single-year (v1).
+  temporal_offsets: [-1, 1]
 
 # Spatial deduplication and block-holdout split (CLAUDE.md §6)
 geometry:
